@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Todo — Tasty Tasks</title>
+  <style>
+    :root{
+      --bg:#f5f7fb; --card:#ffffff; --accent:#2563eb; --muted:#6b7280; --success:#16a34a;
+    }
+    *{box-sizing:border-box;font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
+    body{margin:0;background:linear-gradient(180deg,#eef2ff 0%,var(--bg) 60%);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px;}
+    .container{width:100%;max-width:760px;background:var(--card);border-radius:12px;box-shadow:0 8px 30px rgba(16,24,40,0.06);padding:24px;}
+    header{display:flex;align-items:center;gap:12px;margin-bottom:12px;}
+    .logo{width:56px;height:56px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#7c3aed);display:grid;place-items:center;color:#fff;font-weight:700;font-size:20px;}
+    h1{margin:0;font-size:20px;}
+    p.lead{margin:0;color:var(--muted);font-size:13px;}
+    .add-row{display:flex;gap:8px;margin:18px 0;}
+    input[type="text"]{flex:1;padding:12px 14px;border-radius:8px;border:1px solid #e6e9ef;font-size:14px;outline:none;}
+    input[type="text"]:focus{box-shadow:0 0 0 3px rgba(37,99,235,0.08);border-color:var(--accent);}
+    button.btn{background:var(--accent);color:#fff;padding:10px 14px;border-radius:8px;border:0;font-weight:600;cursor:pointer;}
+    .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;}
+    .filters{display:flex;gap:6px;}
+    .chip{padding:8px 10px;border-radius:999px;border:1px solid transparent;background:transparent;color:var(--muted);cursor:pointer;font-size:13px;}
+    .chip.active{background:#eef2ff;color:var(--accent);border-color:rgba(37,99,235,0.15);font-weight:600;}
+    .stats{margin-left:auto;color:var(--muted);font-size:13px;}
+    ul.todo-list{list-style:none;padding:0;margin:0;border-top:1px solid #f1f3f6;}
+    li.task{display:flex;align-items:center;gap:12px;padding:12px;border-bottom:1px solid #f1f3f6;}
+    .task-left{display:flex;align-items:center;gap:12px;flex:1;}
+    .checkbox{width:18px;height:18px;border-radius:4px;border:2px solid #e6e9ef;display:grid;place-items:center;cursor:pointer;}
+    .checkbox.checked{background:var(--success);border-color:var(--success);color:#fff;}
+    .task-title{font-size:15px;color:#111827;}
+    .task-title.done{color:var(--muted);text-decoration:line-through;font-weight:500;}
+    .task-actions{display:flex;gap:8px;align-items:center;}
+    .icon-btn{background:transparent;border:0;cursor:pointer;padding:6px;border-radius:6px;color:var(--muted);}
+    .icon-btn:hover{background:#f3f4f6;}
+    .edit-input{padding:8px;border-radius:6px;border:1px solid #e6e9ef;font-size:14px;width:100%;}
+    .bottom-actions{display:flex;align-items:center;justify-content:space-between;padding-top:12px;}
+    .clear-btn{background:transparent;border:0;color:#ef4444;cursor:pointer;font-weight:600;}
+    @media (max-width:520px){
+      .container{padding:16px}
+      header{gap:8px}
+      .logo{width:44px;height:44px;font-size:16px}
+    }
+  </style>
+</head>
+<body>
+  <div class="container" role="application" aria-labelledby="app-title">
+    <header>
+      <div class="logo">TK</div>
+      <div>
+        <h1 id="app-title">Tasty Tasks — Todo</h1>
+        <p class="lead">Focus on what matters. Add tasks, mark done, and sync locally.</p>
+      </div>
+    </header>
+
+    <div class="add-row">
+      <input id="taskInput" type="text" placeholder="Add new task and press Enter..." aria-label="New task">
+      <button id="addBtn" class="btn">Add</button>
+    </div>
+
+    <div class="controls">
+      <div class="filters" role="tablist" aria-label="Filters">
+        <button class="chip active" data-filter="all">All</button>
+        <button class="chip" data-filter="active">Active</button>
+        <button class="chip" data-filter="completed">Completed</button>
+      </div>
+      <div class="stats" id="stats">0 tasks</div>
+    </div>
+
+    <ul id="todoList" class="todo-list" aria-live="polite"></ul>
+
+    <div class="bottom-actions">
+      <div>
+        <button id="clearCompleted" class="clear-btn">Clear completed</button>
+      </div>
+      <div style="color:var(--muted);font-size:13px">Press <strong>Enter</strong> to add • Double-click title to edit</div>
+    </div>
+  </div>
+
+  <script>
+    // Basic TODO app with localStorage
+    const STORAGE_KEY = 'tasty_tasks_v1';
+    let tasks = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    let filter = 'all';
+
+    const taskInput = document.getElementById('taskInput');
+    const addBtn = document.getElementById('addBtn');
+    const todoList = document.getElementById('todoList');
+    const stats = document.getElementById('stats');
+    const chips = document.querySelectorAll('.chip');
+    const clearCompletedBtn = document.getElementById('clearCompleted');
+
+    function save() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+    }
+
+    function uid() {
+      return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    }
+
+    function addTask(title) {
+      const t = title && title.trim();
+      if (!t) return;
+      tasks.unshift({ id: uid(), title: t, completed: false, createdAt: Date.now() });
+      save();
+      taskInput.value = '';
+      render();
+    }
+
+    function toggleComplete(id) {
+      tasks = tasks.map(task => task.id === id ? {...task, completed: !task.completed } : task);
+      save(); render();
+    }
+
+    function deleteTask(id) {
+      tasks = tasks.filter(t => t.id !== id);
+      save(); render();
+    }
+
+    function startEdit(id, currentText, li) {
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = currentText;
+      input.className = 'edit-input';
+      li.querySelector('.task-left').replaceWith(input);
+      input.focus();
+      input.select();
+
+      function finish() {
+        const v = input.value.trim();
+        if (!v) { deleteTask(id); } 
+        else {
+          tasks = tasks.map(t => t.id === id ? {...t, title: v } : t);
+        }
+        save(); render();
+      }
+      input.addEventListener('blur', finish);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') input.blur();
+        if (e.key === 'Escape') render();
+      });
+    }
+
+    function clearCompleted() {
+      tasks = tasks.filter(t => !t.completed);
+      save(); render();
+    }
+
+    function render() {
+      // filter tasks
+      const filtered = tasks.filter(t => {
+        if (filter === 'all') return true;
+        if (filter === 'active') return !t.completed;
+        return t.completed;
+      });
+
+      // stats
+      const total = tasks.length;
+      const remaining = tasks.filter(t => !t.completed).length;
+      stats.textContent = `${remaining} active • ${total} total`;
+
+      // build list
+      todoList.innerHTML = '';
+      if (filtered.length === 0) {
+        const empty = document.createElement('li');
+        empty.className = 'task';
+        empty.innerHTML = '<div class="task-left"><div style="width:18px"></div><div style="color:var(--muted)">No tasks to show</div></div>';
+        todoList.appendChild(empty);
+        return;
+      }
+
+      filtered.forEach(task => {
+        const li = document.createElement('li');
+        li.className = 'task';
+
+        const left = document.createElement('div');
+        left.className = 'task-left';
+
+        const cb = document.createElement('div');
+        cb.className = 'checkbox' + (task.completed ? ' checked' : '');
+        cb.setAttribute('role','checkbox');
+        cb.setAttribute('aria-checked', String(!!task.completed));
+        cb.tabIndex = 0;
+        cb.addEventListener('click', () => toggleComplete(task.id));
+        cb.addEventListener('keydown', (e) => { if (e.key === 'Enter') toggleComplete(task.id); });
+
+        const title = document.createElement('div');
+        title.className = 'task-title' + (task.completed ? ' done' : '');
+        title.textContent = task.title;
+        title.title = 'Double-click to edit';
+        title.addEventListener('dblclick', () => startEdit(task.id, task.title, li));
+
+        left.appendChild(cb);
+        left.appendChild(title);
+
+        const actions = document.createElement('div');
+        actions.className = 'task-actions';
+
+        const editBtn = document.createElement('button');
+        editBtn.className = 'icon-btn';
+        editBtn.innerHTML = '✏️';
+        editBtn.title = 'Edit';
+        editBtn.addEventListener('click', () => startEdit(task.id, task.title, li));
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'icon-btn';
+        delBtn.innerHTML = '🗑️';
+        delBtn.title = 'Delete';
+        delBtn.addEventListener('click', () => deleteTask(task.id));
+
+        actions.appendChild(editBtn);
+        actions.appendChild(delBtn);
+
+        li.appendChild(left);
+        li.appendChild(actions);
+        todoList.appendChild(li);
+      });
+    }
+
+    // events
+    addBtn.addEventListener('click', () => addTask(taskInput.value));
+    taskInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') addTask(taskInput.value); });
+    chips.forEach(c => c.addEventListener('click', () => {
+      chips.forEach(x => x.classList.remove('active'));
+      c.classList.add('active');
+      filter = c.dataset.filter;
+      render();
+    }));
+    clearCompletedBtn.addEventListener('click', clearCompleted);
+
+    // initial render
+    render();
+  </script>
+</body>
+</html>
